@@ -1,0 +1,18 @@
+- Register user
+    - get data
+    - validate
+    - check if user exists
+    - create a user in database
+    - create a verification token
+    - save token in the database
+    - send token as email to user
+    - send success status to the user
+
+- Verify user
+    - get token from url
+    - validate token
+    - find user based on token
+    - set isVerified field to true
+    - remove verifiction token
+    - save
+    - response
