@@ -23,7 +23,7 @@ app.use(cors({
 // routes
 dbConnect();
 app.get("/", (req, res) => {
-    res.send("Hello!")
+    res.send("Authentication in NodeJS!")
 });
 app.use("/api/v1/users", userRoutes);
 

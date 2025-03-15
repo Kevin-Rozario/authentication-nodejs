@@ -44,9 +44,42 @@ export const registerUser = asyncHandler(async (req, res) => {
     res.status(201).json(new ApiResponse(201, registeredUser, "User registered successfully!"));
 });
 
-export const verifyUser = (req, res) => {
+export const verifyUser = asyncHandler(async (req, res) => {
+    // Get the verification token from request
+    const token = req.query.token;
 
-};
+    // Check if token is provided
+    if (!token) {
+        throw new ApiError(401, "Verification token is missing", ["token"]);
+    }
+
+    // Find user with the verification token
+    const user = await User.findOne({ verificationToken: token });
+
+    // Handle invalid or expired token
+    if (!user) {
+        throw new ApiError(400, "Invalid or expired verification token", ["token"]);
+    }
+
+    // Check if token is expired
+    if (user.verificationTokenExpiry && user.verificationTokenExpiry < Date.now()) {
+        throw new ApiError(400, "Verification token has expired. Please request a new one.", ["token"]);
+    }
+
+    // Mark account as verified
+    user.isAccountVerified = true;
+    user.set({
+        verificationToken: undefined,
+        verificationTokenExpiry: undefined,
+    });
+
+    await user.save();
+
+    // Send response with verified user
+    const verifiedUser = await User.findOne({ email: user.email }).select("-password");
+    return res.status(200).json(new ApiResponse(200, verifiedUser, "User verified successfully!"));
+});
+
 
 export const loginUser = (req, res) => {
 
