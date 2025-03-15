@@ -117,12 +117,7 @@ export const loginUser = asyncHandler(async (req, res) => {
     await user.save();
 
     // set tokens as cookies
-    res.cookie("accessToken", accessToken, {
-        httpOnly: true,
-        secure: process.env.NODE_ENV === "production",
-        sameSite: true,
-        maxAge: parseInt(process.env.ACCESS_COOKIE_MAXAGE, 10),
-    });
+    res.setHeader("Authorization", `Bearer ${accessToken}`);
     res.cookie("refreshToken", refreshToken, {
         httpOnly: true,
         secure: process.env.NODE_ENV === "production",
