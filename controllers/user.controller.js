@@ -4,6 +4,7 @@ import User from "../models/user.model.js";
 import crypto from "crypto";
 import sendEmail from "../services/email.service.js";
 import { asyncHandler } from "../middlewares/asyncHandler.middleware.js";
+import generateTokens from "../services/generateTokens.service.js"
 
 export const registerUser = asyncHandler(async (req, res) => {
     // Extract data from request
@@ -81,9 +82,58 @@ export const verifyUser = asyncHandler(async (req, res) => {
 });
 
 
-export const loginUser = (req, res) => {
+export const loginUser = asyncHandler(async (req, res) => {
+    // get credentials from the request
+    const { email, password } = req.body;
 
-};
+    // validate the credentials
+    if (!email || !password) {
+        throw new ApiError(400, "Email and password required!", ["email", "password"]);
+    };
+
+    // check if user exists in the database
+    const user = await User.findOne({ email });
+    if (!user) {
+        throw new ApiError(400, "Invalid credentials", ["email", "password"]);
+    }
+
+    // check if the password match with password in database
+    const isMatch = user.comparePassword(password);
+    if (!isMatch) {
+        throw new ApiError(400, "Invalid credentials", ["email", "password"]);
+    }
+
+    // check if the user is verified
+    if (!user.isAccountVerified) {
+        throw new ApiError(403, "Account not verified!", ["email"]);
+    }
+
+    // generate access and refresh tokens store it in the database
+    const { accessToken, refreshToken } = generateTokens(user);
+    user.set({
+        accessToken,
+        refreshToken,
+    });
+    await user.save();
+
+    // set tokens as cookies
+    res.cookie("accessToken", accessToken, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === "production",
+        sameSite: true,
+        maxAge: parseInt(process.env.ACCESS_COOKIE_MAXAGE, 10),
+    });
+    res.cookie("refreshToken", refreshToken, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === "production",
+        sameSite: true,
+        maxAge: parseInt(process.env.REFRESH_COOKIE_MAXAGE, 10),
+    });
+
+    // send response
+    const loggedInUser = await User.findOne({ email: user.email }).select("-password");
+    return res.status(200).json(new ApiResponse(200, loggedInUser, "User logged in successfully!"));
+});
 
 export const logoutUser = (req, res) => {
 
