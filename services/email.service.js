@@ -17,6 +17,7 @@ const sendEmail = async (user) => {
 
   try {
     const info = await transporter.sendMail({
+      from: process.env.MAILTRAP_SENDER_EMAIL || "mail.test123@example.com",
       to: user.email, // list of receivers
       subject: "Verification Email",
       html: emailTemplate,

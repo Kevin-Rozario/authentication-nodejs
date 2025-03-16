@@ -4,7 +4,7 @@ import User from "../models/user.model.js";
 import crypto from "crypto";
 import sendEmail from "../services/email.service.js";
 import { asyncHandler } from "../middlewares/asyncHandler.middleware.js";
-import generateTokens from "../services/generateTokens.service.js"
+import jwt from "jsonwebtoken";
 
 export const registerUser = asyncHandler(async (req, res) => {
     // Extract data from request
@@ -98,7 +98,7 @@ export const loginUser = asyncHandler(async (req, res) => {
     }
 
     // check if the password match with password in database
-    const isMatch = user.comparePassword(password);
+    const isMatch = await user.comparePassword(password);
     if (!isMatch) {
         throw new ApiError(400, "Invalid credentials", ["email", "password"]);
     }
@@ -109,21 +109,19 @@ export const loginUser = asyncHandler(async (req, res) => {
     }
 
     // generate access and refresh tokens store it in the database
-    const { accessToken, refreshToken } = generateTokens(user);
-    user.set({
-        accessToken,
-        refreshToken,
-    });
+    const accessToken = await user.generateAccessToken();
+    const refreshToken = await user.generateRefreshToken();
+    user.refreshToken = refreshToken;
     await user.save();
 
     // set tokens as cookies
-    res.setHeader("Authorization", `Bearer ${accessToken}`);
-    res.cookie("refreshToken", refreshToken, {
+    const cookieOptions = {
         httpOnly: true,
         secure: process.env.NODE_ENV === "production",
-        sameSite: true,
-        maxAge: parseInt(process.env.REFRESH_COOKIE_MAXAGE, 10),
-    });
+        sameSite: "Strict",
+    }
+    res.cookie("accessToken", accessToken, cookieOptions);
+    res.cookie("refreshToken", refreshToken, cookieOptions);
 
     // send response
     const loggedInUser = await User.findOne({ email: user.email }).select("-password");
@@ -137,3 +135,64 @@ export const logoutUser = (req, res) => {
 export const resetPassword = (req, res) => {
 
 };
+
+export const renewRefreshToken = asyncHandler(async (req, res) => {
+    // Get refresh token from request cookies
+    const refreshToken = req.cookies.refreshToken;
+
+    // Validate presence
+    if (!refreshToken) {
+        throw new ApiError(401, "Refresh token required!", ["refreshToken"]);
+    }
+
+    // Verify refresh token
+    const decoded = jwt.verify(refreshToken, process.env.REFRESH_TOKEN_SECRET);
+    const userId = decoded?.userId;
+
+    // Fetch user
+    const user = await User.findOne({ _id: userId });
+    if (!user) {
+        throw new ApiError(401, "Invalid refresh token", ["refreshToken"]);
+    }
+
+    // Ensure refresh token matches the one stored in DB
+    if (refreshToken !== user.refreshToken) {
+        throw new ApiError(401, "Refresh token expired or used", ["refreshToken"]);
+    }
+
+    // Generate new tokens
+    const newAccessToken = await user.generateAccessToken();
+    const newRefreshToken = await user.generateRefreshToken();
+
+    // Save new refresh token in DB
+    user.refreshToken = newRefreshToken;
+    await user.save();
+
+    // Cookie options
+    const cookieOptions = {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === "production",
+        sameSite: "Strict",
+    };
+
+    // Set new tokens in cookies
+    res.cookie("accessToken", newAccessToken, cookieOptions); // 15 minutes
+    res.cookie("refreshToken", newRefreshToken, cookieOptions);
+
+    // Send response
+    res.status(200).json(new ApiResponse(200, { accessToken: newAccessToken }, "Access token refreshed!"));
+});
+
+export const getProfile = asyncHandler(async (req, res) => {
+    const userId = req.user?.userId;
+    if (!userId) {
+        throw new ApiError(401, "Unauthorised request");
+    };
+
+    const foundUser = await User.findOne({ _id: userId }).select("-_id -password -refreshToken -role");
+    if (!foundUser) {
+        throw new ApiError(404, "User not found!", ["userId"]);
+    };
+
+    res.status(200).json(new ApiResponse(200, foundUser, "User fetched succssfully!"));
+})
