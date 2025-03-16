@@ -34,8 +34,8 @@ const userSchema = new mongoose.Schema({
         type: Date,
         default: () => new Date(Date.now() + 10 * 60 * 1000) // 10 mins expiry
     },
-    otp: String,
-    otpExpiry: {
+    resetPasswordToken: String,
+    resetPasswordTokenExpiry: {
         type: Date,
         default: () => new Date(Date.now() + 10 * 60 * 1000) // 10 mins expiry
     },
