@@ -128,9 +128,36 @@ export const loginUser = asyncHandler(async (req, res) => {
     return res.status(200).json(new ApiResponse(200, loggedInUser, "User logged in successfully!"));
 });
 
-export const logoutUser = (req, res) => {
+export const logoutUser = asyncHandler(async (req, res) => {
+    const userId = req.user?.userId;
 
-};
+    if (!userId) {
+        throw new ApiError(401, "Unauthorized: No user found in request!", ["userId"]);
+    }
+
+    const user = await User.findById(userId);
+    if (!user) {
+        throw new ApiError(404, "User not found!", ["userId"]);
+    }
+
+    // Clear refresh token from the database
+    user.refreshToken = undefined;
+    await user.save();
+
+    // Clear cookies
+    const cookieOptions = {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === "production",
+        sameSite: "Strict",
+    };
+
+    res.clearCookie("accessToken", cookieOptions);
+    res.clearCookie("refreshToken", cookieOptions);
+
+    // Send response
+    return res.status(200).json(new ApiResponse(200, null, "User logged out successfully!"));
+});
+
 
 export const resetPassword = (req, res) => {
 
