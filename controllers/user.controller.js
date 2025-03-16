@@ -1,10 +1,10 @@
 import ApiResponse from "../utils/apiResponse.js";
 import { ApiError } from "../utils/apiError.js";
 import User from "../models/user.model.js";
-import crypto from "crypto";
 import sendEmail from "../services/email.service.js";
 import { asyncHandler } from "../middlewares/asyncHandler.middleware.js";
 import jwt from "jsonwebtoken";
+import generateEmailToken from "../services/generateEmailToken.service.js";
 
 export const registerUser = asyncHandler(async (req, res) => {
     // Extract data from request
@@ -29,7 +29,7 @@ export const registerUser = asyncHandler(async (req, res) => {
     }
 
     // Generate a verification token and store it in the user document
-    const verificationToken = crypto.randomBytes(32).toString("hex");
+    const verificationToken = generateEmailToken();
     user.verificationToken = verificationToken;
     user.verificationTokenExpiry = new Date(Date.now() + 10 * 60 * 1000); // 10 mins expiry
     await user.save();
